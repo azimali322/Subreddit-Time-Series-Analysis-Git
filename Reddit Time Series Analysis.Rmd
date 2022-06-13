@@ -1,0 +1,394 @@
+---
+title: "Time Series Analysis"
+author: "Azim Ali"
+date: "`r format(Sys.time(), '%m/%d/%Y')`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, include=FALSE}
+# load library
+library(jsonlite)
+library(tidyverse)
+library(dplyr)
+library(httr)
+library(ggplot2)
+library(gridExtra)
+library(tidyverse)
+library(astsa)
+library(xts)
+library(lubridate)
+```
+
+*Reddit API web parsing for subreddit activity traffic data.*
+
+The below chunk is the date time cleaning for SARIMA time series modeling.
+
+```{r, warning=FALSE}
+subredditactivity <- read.csv("SubredditActiveUsersParsed.csv")
+# subredditactivity
+subredditactivity$DateTime <- as.POSIXct(subredditactivity$DateTime, format = "%Y-%m-%d %H:%M:%S", tz = "CST") 
+
+subredditactivity_NANs <- subredditactivity %>% filter(is.na(Active_Users))
+# subredditactivity_NANs
+
+orangetheoryactivity <- subredditactivity %>% 
+  filter(Subreddit == "/r/orangetheory") %>%
+  filter(!is.na(Active_Users)) %>%
+  group_by(DateTime = floor_date(DateTime, "hour"), Subreddit) %>%
+  summarise(Active_Users = mean(Active_Users, na.rm = TRUE))
+head(orangetheoryactivity)
+
+nbaactivity <- subredditactivity %>% 
+  filter(Subreddit == "/r/nba") %>%
+  filter(!is.na(Active_Users)) %>%
+  group_by(DateTime = floor_date(DateTime, "hour"), Subreddit) %>%
+  summarise(Active_Users = mean(Active_Users, na.rm = TRUE))
+head(nbaactivity)
+
+AskRedditactivity <- subredditactivity %>% 
+  filter(Subreddit == "/r/AskReddit") %>%
+  filter(!is.na(Active_Users)) %>%
+  group_by(DateTime = floor_date(DateTime, "hour"), Subreddit) %>%
+  summarise(Active_Users = mean(Active_Users, na.rm = TRUE))
+head(AskRedditactivity)
+
+nflactivity <- subredditactivity %>% 
+  filter(Subreddit == "/r/nfl") %>%
+  filter(!is.na(Active_Users)) %>%
+  group_by(DateTime = floor_date(DateTime, "hour"), Subreddit) %>%
+  summarise(Active_Users = mean(Active_Users, na.rm = TRUE))
+head(nflactivity)
+
+Fitnessactivity <- subredditactivity %>% 
+  filter(Subreddit == "/r/Fitness") %>%
+  filter(!is.na(Active_Users)) %>%
+  group_by(DateTime = floor_date(DateTime, "hour"), Subreddit) %>%
+  summarise(Active_Users = mean(Active_Users, na.rm = TRUE))
+head(Fitnessactivity)
+
+BandofBrothersactivity <- subredditactivity %>% 
+  filter(Subreddit == "/r/BandofBrothers") %>%
+  filter(!is.na(Active_Users)) %>%
+  group_by(DateTime = floor_date(DateTime, "hour"), Subreddit) %>%
+  summarise(Active_Users = mean(Active_Users, na.rm = TRUE))
+head(BandofBrothersactivity)
+
+UTAustinactivity <- subredditactivity %>% 
+  filter(Subreddit == "/r/UTAustin") %>%
+  filter(!is.na(Active_Users)) %>%
+  group_by(DateTime = floor_date(DateTime, "hour"), Subreddit) %>%
+  summarise(Active_Users = mean(Active_Users, na.rm = TRUE))
+head(UTAustinactivity)
+```
+
+Exploratory data analysis of subreddit traffic activity data on Reddit.
+
+```{r, warning=FALSE}
+number_of_data_points <- length(orangetheoryactivity$Active_Users)
+
+ggplot(orangetheoryactivity,aes(x=DateTime,y=Active_Users, col = Subreddit))+geom_point()+geom_line() +
+  geom_point(data = nbaactivity, aes(col = Subreddit))+geom_line(data = nbaactivity, aes(col = Subreddit)) +
+  geom_point(data = AskRedditactivity, aes(col = Subreddit))+geom_line(data = AskRedditactivity, aes(col = Subreddit)) +
+  geom_point(data = nflactivity, aes(col = Subreddit))+geom_line(data = nflactivity, aes(col = Subreddit)) +
+  geom_point(data = Fitnessactivity, aes(col = Subreddit))+geom_line(data = Fitnessactivity, aes(col = Subreddit)) +
+  geom_point(data = BandofBrothersactivity, aes(col = Subreddit))+geom_line(data = BandofBrothersactivity, aes(col = Subreddit)) +
+  geom_point(data = UTAustinactivity, aes(col = Subreddit))+geom_line(data = UTAustinactivity, aes(col = Subreddit)) +
+  labs(caption = "Figure 1: Plot of Subreddit Activity") + theme(plot.caption = element_text(hjust = 0)) + xlab("Date and Time") + ylab("Subreddit traffic (active users)") + ggtitle("Subreddit Activity") 
+```
+
+Specific subreddit time series traffic activity data.
+
+```{r, warning=FALSE}
+ggplot(orangetheoryactivity,aes(x=DateTime,y=Active_Users, col = Subreddit))+geom_point(size=0.7)+geom_line() + labs(caption = "Figure 2: Plot of /r/orangetheory Activity") + theme(plot.caption = element_text(hjust = 0)) + xlab("Date and Time") + ylab("Subreddit traffic (active users)") + ggtitle("/r/orangetheory Activity")
+
+ggplot(nbaactivity,aes(x=DateTime,y=Active_Users, col = Subreddit))+geom_point(size=0.7)+geom_line() + labs(caption = "Figure 3: Plot of /r/nba Activity") + theme(plot.caption = element_text(hjust = 0)) + xlab("Date and Time") + ylab("Subreddit traffic (active users)") + ggtitle("/r/nba Activity")
+
+ggplot(nflactivity,aes(x=DateTime,y=Active_Users, col = Subreddit))+geom_point(size=0.7)+geom_line() + labs(caption = "Figure 4: Plot of /r/nfl Activity") + theme(plot.caption = element_text(hjust = 0)) + xlab("Date and Time") + ylab("Subreddit traffic (active users)") + ggtitle("/r/nfl Activity")
+
+ggplot(Fitnessactivity,aes(x=DateTime,y=Active_Users, col = Subreddit))+geom_point(size=0.7)+geom_line() + labs(caption = "Figure 5: Plot of /r/Fitness Activity") + theme(plot.caption = element_text(hjust = 0)) + xlab("Date and Time") + ylab("Subreddit traffic (active users)") + ggtitle("/r/Fitness Activity")
+
+ggplot(BandofBrothersactivity,aes(x=DateTime,y=Active_Users, col = Subreddit))+geom_point(size=0.7)+geom_line() + labs(caption = "Figure 6: Plot of /r/BandofBrothers Activity") + theme(plot.caption = element_text(hjust = 0)) + xlab("Date and Time") + ylab("Subreddit traffic (active users)") + ggtitle("/r/BandofBrothers Activity")
+
+ggplot(UTAustinactivity,aes(x=DateTime,y=Active_Users, col = Subreddit))+geom_point(size=0.7)+geom_line() + labs(caption = "Figure 7: Plot of /r/UTAustinactivity Activity") + theme(plot.caption = element_text(hjust = 0)) + xlab("Date and Time") + ylab("Subreddit traffic (active users)") + ggtitle("/r/UTAustin Activity")
+```
+Clean up one specific subreddit to remove any time points with no gaps.
+
+```{r}
+UTAustinactivity %>%
+  filter(DateTime <= ymd_hms('2022-06-02 19:00:00')) # power outage cut parser at this time.
+
+UTAustinactivity %>%
+  filter(DateTime > ymd_hms('2022-06-02 19:00:00'), DateTime <= ymd_hms('2022-06-03 23:00:00')) # Power outage and changing code on 6/2 and 6/3 midnight
+
+cleanUTAustinactivity <- UTAustinactivity %>%
+  filter(DateTime > ymd_hms('2022-06-03 23:00:00'))
+head(cleanUTAustinactivity)
+number_of_data_points <- length(cleanUTAustinactivity$Active_Users)
+```
+
+Find optimal parameters for SARIMA function. 
+
+``` {r, warning = FALSE}
+x <- cleanUTAustinactivity[["Active_Users"]] # unlist data
+interval <- 24 # S is 24 due to 24 hours in a day.
+value <- c(0,1)
+count <- 0
+min_AIC <- 100
+params <- list()
+AICc_vals <- list()
+
+for(p in value){ #For loop to iterate through range of (0,1) in each parameter and plug into sarima function.
+  for(d in value){
+    for(q in value){
+      for(P in value){
+        for(D in value){
+          for(Q in value){
+              # if (P==1 & D==0 & Q==1 & d==0) {break} #If these selected parameters are chosen from for loop, then ignore (break) them because it leads to error in sarima function. Note: this is one of the 4 variants that we are supposed to ignore, as per question pretext.
+              if (P==1 & D==0 & Q==0 & d==0) {break}
+              if (P==2 & D==0 & Q==0 & d==0) {break}
+              if (P==2 & D==2 & Q==0 & d==0) {break}
+              if (P==1 & D==2 & Q==0 & d==0) {break}
+              if (P==2 & D==1 & Q==0 & d==0) {break}
+              else {
+                # print("break")
+                # print(p)
+                # print(d)
+                # print(q)
+                # print(P)
+                # print(D)
+                # print(Q)
+              fit <- sarima(x, p = p, d = d, q = q, P = P, D = D, Q = Q, S = interval, no.constant = TRUE, details = FALSE)
+              # cat(sprintf("p:%i, d:%i, q:%i, P:%i, D:%i, Q:%i\n", p,d,q,P,D,Q))
+              # AICc_vals <- append(AICc_vals, list(fit$AICc, p,d,q,P,D,Q))
+              AICc_vals[[length(AICc_vals)+1]] <- list(fit$AICc, p,d,q,P,D,Q)
+              # print(AICc_vals)
+              # print(fit$AICc)
+              count <- count + 1
+              if(fit$AICc < min_AIC){
+                min_AIC <- fit$AICc
+                params <- list(p,d,q,P,D,Q)
+                }   
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+# count
+min_AIC # 2.064692, 1, 0, 1, 1, 1, 1 for full year of data
+# 2.090748, 1, 1, 1, 1, 0, 1 for May data only
+params
+```
+
+Plot /r/UTAustin time series data with confidence intervals of SARIMA model. 
+
+``` {r UTAUSTIN}
+optfit <- sarima(x, p = params[[1]], d = params[[2]], q = params[[3]], P = params[[4]], D = params[[5]], Q = params[[6]], S = 24, no.constant = TRUE, details = FALSE)
+optfit
+
+# x
+t <- as.numeric(x) - as.numeric(resid(optfit$fit))
+# t
+n <- number_of_data_points
+# Collect time series for plotting
+fit_data <- bind_rows(data.frame(Time = cleanUTAustinactivity$DateTime[1:n], Active_Users = as.numeric(x)), data.frame(Time = cleanUTAustinactivity$DateTime[1:n], x = c(as.numeric(x) - as.numeric(resid(optfit$fit)))))
+# fit_data
+
+fit_pred_data <- data.frame(Time = cleanUTAustinactivity$DateTime[1:n], Active_Users = c(as.numeric(x) - as.numeric(resid(optfit$fit))), SE = c(rep(sqrt(optfit$fit$sigma2), n)))
+# fit_pred_data
+
+# Plot data and forecasts
+gg_fit <- ggplot(fit_data,
+                 aes(x = Time)) +
+  geom_line(aes(y = Active_Users), size=1) + geom_line(data = cleanUTAustinactivity,aes(x=DateTime,y=Active_Users, col = Subreddit)) +
+  geom_ribbon(data = fit_pred_data,
+              aes(x = Time, 
+                  ymin = Active_Users - 1.96*SE,
+                  ymax = Active_Users + 1.96*SE),
+              alpha = .4) +
+  labs(caption = "Figure 8: Time Series Analysis of /r/UTAustin for anomalous subreddit active traffic. \nNote fairly well-behaved time series.") +
+  theme(plot.caption = element_text(hjust = 0)) +
+  xlab("Time") +
+  ylab("Active Users")
+
+gg_fit
+```
+Repeat analysis with /r/NBA data. Notice the peaks where NBA playoff games have occurred in the time frame of this Reddit data parsing.
+
+``` {r NBA, warning = FALSE}
+# make_time_series_sarima <- function(UTAustinactivity){
+cleanNBAactivity <- nbaactivity %>%
+  filter(DateTime > ymd_hms('2022-06-03 23:00:00'))
+cleanNBAactivity
+number_of_data_points <- length(cleanNBAactivity$Active_Users)
+
+x <- cleanNBAactivity[["Active_Users"]] # unlist data
+interval <- 24 # S is 24 due to 24 hours in a day.
+value <- c(0,1)
+count <- 0
+min_AIC <- 100
+params <- list()
+AICc_vals <- list()
+
+for(p in value){ #For loop to iterate through range of (0,1) in each parameter and plug into sarima function.
+  for(d in value){
+    for(q in value){
+      for(P in value){
+        for(D in value){
+          for(Q in value){
+              if (P==1 & D==0 & Q==1 & d==0) {break}
+              if (P==1 & D==0 & Q==0 & d==0) {break}
+              if (P==1 & D==0 & Q==1 & q==0) {break}
+              else {
+                # print("break")
+                # print(p)
+                # print(d)
+                # print(q)
+                # print(P)
+                # print(D)
+                # print(Q)
+              fit <- sarima(x, p = p, d = d, q = q, P = P, D = D, Q = Q, S = interval, no.constant = TRUE, details = FALSE)
+              AICc_vals[[length(AICc_vals)+1]] <- list(fit$AICc, p,d,q,P,D,Q)
+              count <- count + 1
+              if(fit$AICc < min_AIC){
+                min_AIC <- fit$AICc
+                params <- list(p,d,q,P,D,Q)
+                }   
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+# count
+min_AIC # 2.064692, 1, 0, 1, 1, 1, 1 for full year of data
+# 2.090748, 1, 1, 1, 1, 0, 1 for May data only
+params
+
+optfit <- sarima(x, p = params[[1]], d = params[[2]], q = params[[3]], P = params[[4]], D = params[[5]], Q = params[[6]], S = 24, no.constant = TRUE, details = FALSE)
+optfit
+
+# x
+t <- as.numeric(x) - as.numeric(resid(optfit$fit))
+# t
+n <- number_of_data_points
+# Collect time series for plotting
+fit_data <- bind_rows(data.frame(Time = cleanNBAactivity$DateTime[1:n], Active_Users = as.numeric(x)), data.frame(Time = cleanNBAactivity$DateTime[1:n], x = c(as.numeric(x) - as.numeric(resid(optfit$fit)))))
+# fit_data
+
+fit_pred_data <- data.frame(Time = cleanNBAactivity$DateTime[1:n], Active_Users = c(as.numeric(x) - as.numeric(resid(optfit$fit))), SE = c(rep(sqrt(optfit$fit$sigma2), n)))
+# fit_pred_data
+
+# Plot data and forecasts
+gg_fit <- ggplot(fit_data,
+                 aes(x = Time)) +
+  geom_line(aes(y = Active_Users), size=1) + geom_line(data = cleanNBAactivity,aes(x=DateTime,y=Active_Users, col = Subreddit)) + geom_point(data = cleanNBAactivity,aes(x=DateTime,y=Active_Users, col = Subreddit)) +
+  geom_ribbon(data = fit_pred_data,
+              aes(x = Time, 
+                  ymin = Active_Users - 1.96*SE,
+                  ymax = Active_Users + 1.96*SE),
+              alpha = .4) +
+  labs(caption = "Figure 9: Time Series Analysis of /r/NBA for anomalous subreddit active traffic. \nNote the spike on playoff game times.") +
+  theme(plot.caption = element_text(hjust = 0)) +
+  xlab("Time") +
+  ylab("Active Users")
+
+gg_fit
+# }
+# make_time_series_sarima(nbaactivity)
+```
+
+Repeat analysis with /r/NFL data.
+
+``` {r NFL, warning = FALSE}
+# make_time_series_sarima <- function(UTAustinactivity){
+cleanNBAactivity <- nflactivity %>%
+  filter(DateTime > ymd_hms('2022-06-03 23:00:00'))
+cleanNBAactivity
+number_of_data_points <- length(cleanNBAactivity$Active_Users)
+
+x <- cleanNBAactivity[["Active_Users"]] # unlist data
+interval <- 24 # S is 24 due to 24 hours in a day.
+value <- c(0,1)
+count <- 0
+min_AIC <- 100
+params <- list()
+AICc_vals <- list()
+
+for(p in value){ #For loop to iterate through range of (0,1) in each parameter and plug into sarima function.
+  for(d in value){
+    for(q in value){
+      for(P in value){
+        for(D in value){
+          for(Q in value){
+              if (P==1 & D==0 & Q==1 & d==0) {break}
+              if (P==1 & D==0 & Q==0 & d==0) {break}
+              if (P==1 & D==0 & Q==1 & q==0) {break}
+              else {
+                # print("break")
+                # print(p)
+                # print(d)
+                # print(q)
+                # print(P)
+                # print(D)
+                # print(Q)
+              fit <- sarima(x, p = p, d = d, q = q, P = P, D = D, Q = Q, S = interval, no.constant = TRUE, details = FALSE)
+              AICc_vals[[length(AICc_vals)+1]] <- list(fit$AICc, p,d,q,P,D,Q)
+              count <- count + 1
+              if(fit$AICc < min_AIC){
+                min_AIC <- fit$AICc
+                params <- list(p,d,q,P,D,Q)
+                }   
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+# count
+min_AIC # 2.064692, 1, 0, 1, 1, 1, 1 for full year of data
+# 2.090748, 1, 1, 1, 1, 0, 1 for May data only
+params
+
+optfit <- sarima(x, p = params[[1]], d = params[[2]], q = params[[3]], P = params[[4]], D = params[[5]], Q = params[[6]], S = 24, no.constant = TRUE, details = FALSE)
+optfit
+
+# x
+t <- as.numeric(x) - as.numeric(resid(optfit$fit))
+# t
+n <- number_of_data_points
+# Collect time series for plotting
+fit_data <- bind_rows(data.frame(Time = cleanNBAactivity$DateTime[1:n], Active_Users = as.numeric(x)), data.frame(Time = cleanNBAactivity$DateTime[1:n], x = c(as.numeric(x) - as.numeric(resid(optfit$fit)))))
+# fit_data
+
+fit_pred_data <- data.frame(Time = cleanNBAactivity$DateTime[1:n], Active_Users = c(as.numeric(x) - as.numeric(resid(optfit$fit))), SE = c(rep(sqrt(optfit$fit$sigma2), n)))
+# fit_pred_data
+
+# Plot data and forecasts
+gg_fit <- ggplot(fit_data,
+                 aes(x = Time)) +
+  geom_line(aes(y = Active_Users), size=1) + geom_line(data = cleanNBAactivity,aes(x=DateTime,y=Active_Users, col = Subreddit)) + geom_point(data = cleanNBAactivity,aes(x=DateTime,y=Active_Users, col = Subreddit)) +
+  geom_ribbon(data = fit_pred_data,
+              aes(x = Time, 
+                  ymin = Active_Users - 1.96*SE,
+                  ymax = Active_Users + 1.96*SE),
+              alpha = .4) +
+  labs(caption = "Figure 10: Time Series Analysis of /r/NFL for anomalous subreddit active traffic. \nNote the well-behaved traffic activity.") +
+  theme(plot.caption = element_text(hjust = 0)) +
+  xlab("Time") +
+  ylab("Active Users")
+
+gg_fit
+# }
+# make_time_series_sarima(nbaactivity)
+```

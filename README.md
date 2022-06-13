@@ -1,2 +1,2 @@
-# Subreddit Time Series Analysis-Git
- Subreddit traffic activity analysis and web scraping
+# Reddit-Web-Scraping-Time-Series
+ Reddit Scraping Active Users Time Series
